@@ -21,6 +21,13 @@ class ASTMTestBase(IsolatedAsyncioTestCase):
         """
         test_path = os.path.dirname(__file__)
         return os.path.join(test_path, "data")
+    
+    @property
+    def json_data_dir(self):
+        """Returns the data directory
+        """
+        test_path = os.path.dirname(__file__)
+        return os.path.join(test_path, "json_data")
 
     @property
     def instrument_files(self):
@@ -28,11 +35,23 @@ class ASTMTestBase(IsolatedAsyncioTestCase):
         """
         path = "{}/*.txt".format(self.data_dir)
         return glob(path)
+    
+    @property
+    def json_data_files(self):
+        """Returns all instrument files from the data directory
+        """
+        path = "{}/*.json".format(self.json_data_dir)
+        return glob(path)
 
     def get_instrument_file_path(self, filename):
         """Returns the instrument file path
         """
         return os.path.join(self.data_dir, filename)
+    
+    def get_json_file_path(self, filename):
+        """Returns the instrument file path
+        """
+        return os.path.join(self.json_data_dir, filename)
 
     def read_file_lines(self, path, mode="rb"):
         """Read the lines of the file

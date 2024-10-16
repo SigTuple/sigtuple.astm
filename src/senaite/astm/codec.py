@@ -3,6 +3,7 @@
 # Credits to Alexander Shorin:
 # https://github.com/kxepal/python-astm
 
+from typing import List
 from senaite.astm.compat import unicode
 from senaite.astm.constants import COMPONENT_SEP
 from senaite.astm.constants import CR
@@ -185,7 +186,7 @@ def encode(records, encoding=ENCODING, size=None, seq=1):
     return [msg]
 
 
-def iter_encode(records, encoding=ENCODING, size=None, seq=1):
+def iter_encode(records, encoding=ENCODING, size=None, seq=1) -> List[bytes]:
     """Encodes and emits each record as separate message.
 
     If the result message is too large (greater than specified `size` if it's
@@ -194,15 +195,18 @@ def iter_encode(records, encoding=ENCODING, size=None, seq=1):
     :yields: ASTM message chunks.
     :rtype: str
     """
+    msgs = []
     for record in records:
         msg = encode_message(seq, [record], encoding)
+        msgs.append(msg)
         if size is not None and len(msg) > size:
             for chunk in split(msg, size):
                 seq += 1
-                yield chunk
+                # yield chunk TODO: To check
         else:
             seq += 1
-            yield msg
+            # yield msg TODO: To check
+    return msgs
 
 
 def encode_message(seq, records, encoding=ENCODING):

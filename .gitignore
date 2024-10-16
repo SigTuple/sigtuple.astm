@@ -4,3 +4,6 @@
 /astm_messages/
 /test_messages/
 /out/
+*venv*
+src/senaite.astm.egg-info/
+.*
