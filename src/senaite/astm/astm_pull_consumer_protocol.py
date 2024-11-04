@@ -2,6 +2,7 @@
 
 import asyncio
 import os
+from typing import List
 
 from senaite.astm import logger
 from senaite.astm.constants import ACK
@@ -22,8 +23,8 @@ QUEUE = asyncio.Queue()
 DEFAULT_FORMAT = "json"
 
 
-class ASTMProtocol(asyncio.Protocol):
-    """ASTM Protocol
+class ASTMPullConsumerProtocol(asyncio.Protocol):
+    """ASTM Pull Consumer Protocol
 
     Responsible for communication and collecting complete and valid messages.
 
@@ -35,12 +36,15 @@ class ASTMProtocol(asyncio.Protocol):
         self.queue = kwargs.get("queue", QUEUE)
         self.timeout = kwargs.get("timeout", TIMEOUT)
         self.message_format = kwargs.get("message_format", DEFAULT_FORMAT)
-
+        self.pull_consumer_messages = kwargs.get("pull_consumer_messages", [])
+        self.last_sent_pull_consumer_message_index = -1
         self.transport = None
         self.client = None
         self.timer = None
         self.chunks = []
+        self.messages = []
         self.in_transfer_state = False
+        self.is_pull_consumer_active = False
 
     def connection_made(self, transport):
         """Called when a connection is made.
@@ -49,6 +53,10 @@ class ASTMProtocol(asyncio.Protocol):
         # Remember the connected client
         self.client = self.get_client_key(transport)
         logger.debug("Connection from {!s}".format(self.client))
+        # Check if pull consumer message exist
+        if len(self.pull_consumer_messages):
+            self._start_pull_consumer()
+
 
     def start_timer(self):
         """Start the timeout timer
@@ -92,6 +100,7 @@ class ASTMProtocol(asyncio.Protocol):
         self.chunks = []
         self.messages = []
         self.in_transfer_state = False
+        self._reset_pull_consumer()
 
     def data_received(self, data):
         """Called when some data is received.
@@ -147,11 +156,16 @@ class ASTMProtocol(asyncio.Protocol):
     def on_ack(self, data):
         """Calls on <ACK> message receiving."""
         logger.debug("on_ack: %r", data)
+        self.restart_timer()
+        if self.is_pull_consumer_active:
+            self._handle_ack_when_pull_consumer_is_active()
         raise NotAccepted("Server should not be ACKed.")
 
     def on_nak(self, data):
         """Calls on <NAK> message receiving."""
         logger.debug("on_nak: %r", data)
+        if self.is_pull_consumer_active:
+            self._reset_pull_consumer()
         raise NotAccepted("Server should not be NAKed.")
 
     def on_eot(self, data):
@@ -250,3 +264,23 @@ class ASTMProtocol(asyncio.Protocol):
         """
         logger.warning("Lost connection for {!s}".format(self.client))
         self.close_connection()
+
+    def _start_pull_consumer(self):
+        """Start Pull Consumer.
+        """
+        self.transport.write(ENQ)
+        self.start_timer()
+        self.is_pull_consumer_active = True
+        logger.info("Started Pull consumer from {!s}".format(self.client))
+
+    def _reset_pull_consumer(self):
+        self.is_pull_consumer_active = False
+        self.last_sent_pull_consumer_message_index = -1
+
+    def _handle_ack_when_pull_consumer_is_active(self):
+        next_pull_consumer_msg_to_send_idx = self.last_sent_pull_consumer_message_index + 1
+        next_pull_consumer_msg_to_send = self.pull_consumer_messages[next_pull_consumer_msg_to_send_idx]
+        self.transport.write(next_pull_consumer_msg_to_send)
+        self.last_sent_pull_consumer_message_index = next_pull_consumer_msg_to_send_idx
+
+    
