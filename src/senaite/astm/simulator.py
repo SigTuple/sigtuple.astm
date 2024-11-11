@@ -3,9 +3,10 @@
 import argparse
 import asyncio
 import logging
+import time
 
 from senaite.astm import logger
-from senaite.astm.constants import CRLF
+from senaite.astm.constants import CRLF, NAK
 from senaite.astm.constants import ENQ
 from senaite.astm.constants import EOT
 from senaite.astm.constants import ACK
@@ -88,9 +89,17 @@ async def send_message(lines, address, port, **kw):
     # open a new conection for every message
     reader, writer = await asyncio.open_connection(address, port)
 
+    response = await reader.read(100)
+    logger.info('<- Got response: {!r}'.format(response))
+    if response == ENQ:
+        # Start each new message with an ENQ
+        logger.info('-> Write NAK')
+        writer.write(NAK)
+        await writer.drain()
+
     # get the delay
     delay = kw.get('delay', 0)
-
+    time.sleep(20)
     # Start each new message with an ENQ
     logger.info('-> Write ENQ')
     writer.write(ENQ)
@@ -111,6 +120,7 @@ async def send_message(lines, address, port, **kw):
         await writer.drain()
         response = await reader.read(100)
         logger.info('<- Got response: {!r}'.format(response))
+        time.sleep(30)
         if response != ACK:
             logger.error('Expected ACK, got {!r}'.format(response))
             success = False

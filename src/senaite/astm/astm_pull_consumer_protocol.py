@@ -31,12 +31,13 @@ class ASTMPullConsumerProtocol(asyncio.Protocol):
     NOTE: Every connection must be handled by an own instance of this protocol!
     """
     def __init__(self, **kwargs):
-        logger.debug("ASTMProtocol:constructor")
+        logger.debug("ASTMPullConsumerProtocol:constructor")
         self.loop = asyncio.get_event_loop()
         self.queue = kwargs.get("queue", QUEUE)
         self.timeout = kwargs.get("timeout", TIMEOUT)
         self.message_format = kwargs.get("message_format", DEFAULT_FORMAT)
         self.pull_consumer_messages = kwargs.get("pull_consumer_messages", [])
+        self.instances = kwargs.get("instances", [])
         self.last_sent_pull_consumer_message_index = -1
         self.transport = None
         self.client = None
@@ -45,6 +46,12 @@ class ASTMPullConsumerProtocol(asyncio.Protocol):
         self.messages = []
         self.in_transfer_state = False
         self.is_pull_consumer_active = False
+        self.message_to_LIS = []
+        self.message_from_LIS = []
+
+        self.is_outbound_connection_active = False
+        self.is_enq_sent_for_outbound_communication = False
+        self.last_sent_outbound_message_idx = -1
 
     def connection_made(self, transport):
         """Called when a connection is made.
@@ -52,10 +59,11 @@ class ASTMPullConsumerProtocol(asyncio.Protocol):
         self.transport = transport
         # Remember the connected client
         self.client = self.get_client_key(transport)
-        logger.debug("Connection from {!s}".format(self.client))
         # Check if pull consumer message exist
         if len(self.pull_consumer_messages):
             self._start_pull_consumer()
+        logger.debug("Connection from {!s}".format(self.client))
+        self.instances.append(self)
 
 
     def start_timer(self):
@@ -159,7 +167,12 @@ class ASTMPullConsumerProtocol(asyncio.Protocol):
         self.restart_timer()
         if self.is_pull_consumer_active:
             self._handle_ack_when_pull_consumer_is_active()
-        raise NotAccepted("Server should not be ACKed.")
+        if self.is_enq_sent_for_outbound_communication:
+            self.activate_outbound_connection()
+        if self.is_outbound_connection_active:
+            self._handle_ack_for_outbound_communication()
+
+        # raise NotAccepted("Server should not be Acked.")
 
     def on_nak(self, data):
         """Calls on <NAK> message receiving."""
@@ -195,7 +208,7 @@ class ASTMPullConsumerProtocol(asyncio.Protocol):
         else:
             self.queue.put_nowait(wrapper.to_lis2a())
 
-        # Store the raw message for debugging and development purposes
+        # Store the raw message for infoging and development purposes
         self.log_message(wrapper.to_astm())
 
         # Drop session
@@ -269,6 +282,7 @@ class ASTMPullConsumerProtocol(asyncio.Protocol):
         """Start Pull Consumer.
         """
         self.transport.write(ENQ)
+        logger.info(f"Sent message: {ENQ}\n")
         self.start_timer()
         self.is_pull_consumer_active = True
         logger.info("Started Pull consumer from {!s}".format(self.client))
@@ -279,8 +293,55 @@ class ASTMPullConsumerProtocol(asyncio.Protocol):
 
     def _handle_ack_when_pull_consumer_is_active(self):
         next_pull_consumer_msg_to_send_idx = self.last_sent_pull_consumer_message_index + 1
-        next_pull_consumer_msg_to_send = self.pull_consumer_messages[next_pull_consumer_msg_to_send_idx]
-        self.transport.write(next_pull_consumer_msg_to_send)
-        self.last_sent_pull_consumer_message_index = next_pull_consumer_msg_to_send_idx
-
+        if next_pull_consumer_msg_to_send_idx < len(self.pull_consumer_messages):
+            next_pull_consumer_msg_to_send = self.pull_consumer_messages[next_pull_consumer_msg_to_send_idx]
+            self.transport.write(next_pull_consumer_msg_to_send)
+            self.last_sent_pull_consumer_message_index = next_pull_consumer_msg_to_send_idx
+        else:
+            self._reset_pull_consumer()
     
+    def _set_message_to_LIS(self, message_to_LIS: List[str]) -> None:
+        self.message_to_LIS = message_to_LIS
+    
+    def send_outbound_message(self, message_to_LIS: List[str]):
+        self._set_message_to_LIS(message_to_LIS)
+        self.write_enq()
+        self.is_enq_sent_for_outbound_communication = True
+
+    def write_enq(self):
+        """Callback to send <ENQ>
+        """
+        self.transport.write(ENQ)
+        logger.info(f"<- Sending ENQ: {ENQ}")
+
+    def write_eot(self):
+        """Callback to send <EOT>
+        """
+        self.transport.write(EOT)
+        logger.info(f"<- Sending EOT: {EOT}")
+
+    def activate_outbound_connection(self):
+        self.is_outbound_connection_active = True
+        self.is_enq_sent_for_outbound_communication = False
+        logger.info(f"Activated outbound connection")
+
+    def _reset_outbound_connection(self):
+        self.is_enq_sent_for_outbound_communication = False
+        self.is_outbound_connection_active = False
+        self.last_sent_outbound_message_idx = -1
+        logger.info(f"Reseted outbound connection")
+
+    def _handle_ack_for_outbound_communication(self):
+        nxt_idx = self.last_sent_outbound_message_idx + 1
+        if nxt_idx < len(self.message_to_LIS):
+            nxt_msg = self.message_to_LIS[nxt_idx]
+            self.write(data=nxt_msg)
+            self.last_sent_outbound_message_idx = nxt_idx
+        else:
+            self._reset_outbound_connection()
+            self.write_eot()
+    
+    def write(self, data):
+        self.transport.write(data)
+        logger.info("<- Sending response: {!r}".format(data))
+        
