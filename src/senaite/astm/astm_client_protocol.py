@@ -23,15 +23,15 @@ QUEUE = asyncio.Queue()
 DEFAULT_FORMAT = "json"
 
 
-class ASTMPullConsumerProtocol(asyncio.Protocol):
-    """ASTM Pull Consumer Protocol
+class ASTMClientProtocol(asyncio.Protocol):
+    """ASTM Client Protocol
 
     Responsible for communication and collecting complete and valid messages.
 
     NOTE: Every connection must be handled by an own instance of this protocol!
     """
     def __init__(self, **kwargs):
-        logger.debug("ASTMPullConsumerProtocol:constructor")
+        logger.debug("ASTMClientProtocol:constructor")
         self.loop = asyncio.get_event_loop()
         self.queue = kwargs.get("queue", QUEUE)
         self.timeout = kwargs.get("timeout", TIMEOUT)
@@ -55,6 +55,7 @@ class ASTMPullConsumerProtocol(asyncio.Protocol):
         # Remember the connected client
         self.client = self.get_client_key(transport)
         logger.debug("Connection from {!s}".format(self.client))
+        logger.debug("Anil bhai")
         self.instances.append(self)
 
     def start_timer(self):

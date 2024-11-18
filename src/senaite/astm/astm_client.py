@@ -13,10 +13,10 @@ from typing import List
 from senaite.astm import codec, lims
 from senaite.astm import logger
 from senaite.astm.lims import post_to_senaite
-from senaite.astm.astm_pull_consumer_protocol import ASTMPullConsumerProtocol
+from senaite.astm.astm_client_protocol import ASTMClientProtocol
 from senaite.astm.utils import write_message
 
-LOGFILE = "senaite-astm-server.log"
+LOGFILE = "sigtuple-astm-client.log"
 
 
 async def consume(queue, callback=None):
@@ -27,25 +27,23 @@ async def consume(queue, callback=None):
         if callable(callback):
             callback(message)
 
-async def send_report_data_to_lis_from_mandara(instances: List[ASTMPullConsumerProtocol]):
+async def send_report_data_to_lis_from_mandara(astm_client: ASTMClientProtocol):
     logger.info("Before send_report_data_to_lis_from_mandara")
     await asyncio.sleep(30)  # Wait 240 seconds, then stop
-    astm_protocol = instances[0]
     logger.info("\n\nSimulate sending approved report data to LIS\n\n")
-    with open("src/senaite/astm/tests/data/pentra_xlr.txt", "rb") as file:
+    with open("src/senaite/astm/tests/data/cobas_c111.txt", "rb") as file:
         lines = file.readlines()  # Each line is an element in the list
-        astm_protocol.send_outbound_message(message_to_LIS=lines)
+        astm_client.send_outbound_message(message_to_LIS=lines)
     logger.info("after opening")
 
-async def send_query_data_to_lis_from_device(instances: List[ASTMPullConsumerProtocol]):
+async def send_query_data_to_lis_from_device(astm_client: ASTMClientProtocol):
     logger.info("Before send_query_data_to_lis_from_device")
     await asyncio.sleep(10)  # Wait 30 seconds, then stop
-    astm_protocol = instances[0]
     logger.info("\n\nSimulate sending query CBC request from device to LIS\n\n")
-    with open("src/senaite/astm/tests/json_data/cellavision_cellalabs_query.json", "r") as file:
+    with open("src/senaite/astm/tests/json_data/cellavision_results.json", "r") as file:
         cellavision_cellalabs_query_json = json.load(file)
         byte_msgs = codec.iter_encode(cellavision_cellalabs_query_json['data'])
-        astm_protocol.send_outbound_message(message_to_LIS=byte_msgs)
+        astm_client.send_outbound_message(message_to_LIS=byte_msgs)
     logger.info("after opening")
  
 
@@ -163,12 +161,11 @@ def main():
     loop = asyncio.get_event_loop()
 
     # Set logging
-    # if args.verbose:
-    #     logger.setLevel(logging.DEBUG)
-    # else:
-    #     logger.setLevel(logging.INFO)
+    if args.verbose:
+        logger.setLevel(logging.DEBUG)
+    else:
+        logger.setLevel(logging.INFO)
 
-    logger.setLevel(logging.DEBUG)
     logger.addHandler(logging.StreamHandler())
 
     # Validate output path
@@ -187,26 +184,25 @@ def main():
 
     # Create a ASTM message consumer task to be scheduled concurrently.
     queue = asyncio.Queue()
-    instances: List[ASTMPullConsumerProtocol] = []
+    instances: List[ASTMClientProtocol] = []
     
     # loop.create_task(consume(queue, callback=dispatch_astm_message))
     # loop.create_task(send_query_data_to_lis_from_device(instances=instances))
     # loop.create_task(send_report_data_to_lis_from_mandara(instances=instances))
 
 
-    # Create a TCP server coroutine listening on port of the host address.
+    # Create a TCP client coroutine listening on port of the host address.
     # IMPORTANT: We create a new Protocol for every connection!
-    server_coro = loop.create_server(
-        lambda: ASTMPullConsumerProtocol(queue=queue, message_format=args.message_format, instances=instances),
+    client_coro = loop.create_connection(
+        lambda: ASTMClientProtocol(queue=queue, message_format=args.message_format, instances=instances),
         host=args.listen, port=args.port)
 
     # Run until the future (an instance of Future) has completed.
-    server = loop.run_until_complete(server_coro)
+    client = loop.run_until_complete(client_coro)
+    logger.info('Starting client on {}'.format(client[1].client))
 
-    for socket in server.sockets:
-        ip, port = socket.getsockname()
-        logger.info('Starting server on {}:{}'.format(ip, port))
-        logger.info('ASTM server ready to handle connections ...')
+    # loop.create_task(send_query_data_to_lis_from_device(astm_client=client[1]))
+    loop.create_task(send_report_data_to_lis_from_mandara(astm_client=client[1]))
 
     try:
         loop.run_forever()
