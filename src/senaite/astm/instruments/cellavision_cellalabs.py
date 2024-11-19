@@ -41,6 +41,12 @@ RESULT_STATUS = (
     "F",    # F: Final result
 )
 
+PATIENT_SEX = (
+    "F",    # F: Female
+    "M",    # M: Male
+    "U",    # U: Unknown
+)
+
 
 def get_metadata(wrapper):
     """Additional metadata
@@ -91,6 +97,28 @@ class HeaderRecord(records.HeaderRecord):
 class PatientRecord(records.PatientRecord):
     """Patient Information Record (P)
     """
+    # 8.1.3: Practice Assigned Patient ID
+    practice_id = TextField()
+
+    # 8.1.6: PatientName
+    name = ComponentField(
+        Component.build(
+            TextField("last_name"),
+            TextField("first_name"),
+        )
+    )
+
+    # 8.1.8: BirthDate
+    birthdate = TextField()
+
+    # 8.1.9: PatientSex
+    sex = SetField(values=PATIENT_SEX)
+
+    # 8.1.10: PatientRace-EthnicOrigin
+    race = TextField()
+
+    # 8.1.26: Location
+    location = TextField()
 
 
 class OrderRecord(records.OrderRecord):
