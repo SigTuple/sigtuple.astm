@@ -27,6 +27,20 @@ REPORT_TYPES = (
     "X",    # X: Order cancel by CDMS user
 )
 
+RESULT_ABNORMALITY_FLAG = (
+    # if Type of analysis is WBC or BFWBC:
+    "N",    # N: Normal 
+    # if Type of analysis is WBC or BFWBC:
+    "L",    # L: Significantly decreased
+    "l",    # l: Decreased
+    "N",    # N: Normal
+    "h",    # h: Increased
+)
+
+RESULT_STATUS = (
+    "F",    # F: Final result
+)
+
 
 def get_metadata(wrapper):
     """Additional metadata
@@ -158,6 +172,41 @@ class CommentRecord(records.CommentRecord):
 class ResultRecord(records.ResultRecord):
     """Record to transmit analytical data.
     """
+    # 10.1.3: Universal Test ID
+    test = ComponentField(
+        Component.build(
+            NotUsedField(name='_'),
+            TextField("type_of_analysis"),
+            NotUsedField(name='__'),
+            TextField("value_of_type"),
+        )
+    )
+
+    # 10.1.4: DataValue
+    value = TextField()
+
+    # 10.1.5: Units
+    units = TextField()
+
+    # 10.1.6: ReferenceRanges
+    references = TextField()
+
+    # 10.1.7: ResultAbnormalityFlag
+    abnormal_flag = SetField(values=RESULT_ABNORMALITY_FLAG)
+
+    # 10.1.9: ResultStatus
+    status = SetField(values=RESULT_STATUS)
+
+    # 10.1.11: Operator Identification
+    operator = ComponentField(
+        Component.build(
+            NotUsedField(name='_'),
+            TextField("full_name_of_user"),
+        )
+    )
+
+    # 10.1.13: DateTimeTestCompleted
+    completed_at = DateTimeField()
 
 
 class RequestInformationRecord(records.RequestInformationRecord):
