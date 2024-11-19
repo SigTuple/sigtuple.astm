@@ -254,6 +254,14 @@ class ResultRecord(records.ResultRecord):
 class RequestInformationRecord(records.RequestInformationRecord):
     """Request information Record (Q)
     """
+    # 12.1.3: Starting Range ID
+    starting_range = ComponentField(
+        Component.build(
+            NotUsedField(name='_'),
+            TextField("order_id"),
+            NotUsedField(name='__'),
+        )
+    )
 
 
 class ManufacturerInfoRecord(records.ManufacturerInfoRecord):
