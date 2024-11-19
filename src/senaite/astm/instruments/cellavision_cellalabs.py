@@ -72,6 +72,20 @@ def get_mapping():
 class HeaderRecord(records.HeaderRecord):
     """Message Header Record (H)
     """
+    # 7.1.5: SenderID
+    sender = TextField()
+
+    # 7.1.6: SenderFacility
+    address = TextField()
+
+    # 7.1.8: SenderTelephoneNumber
+    phone = TextField()
+
+    # 7.1.10: ReceiverID
+    receiver = TextField()
+
+    # 7.1.14: DateAndTimeOfMessage
+    timestamp = TextField()
 
 
 class PatientRecord(records.PatientRecord):
