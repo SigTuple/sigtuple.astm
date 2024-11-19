@@ -12,6 +12,20 @@ VERSION = "1.0.0"
 # Supports H500 and H550
 HEADER_RX = r".*CellaVision"
 
+PRIORITY = (
+    "R",    # R: Routine
+    "S",    # S: Stat (Urgent)
+)
+
+ACTION_CODES = (
+    "A",    # A: Perform the analysis on slide
+    "C",    # C: Don’t perform any analysis on slide
+)
+
+REPORT_TYPES = (
+    "F",    # F: Sending result
+    "X",    # X: Order cancel by CDMS user
+)
 
 
 def get_metadata(wrapper):
@@ -54,6 +68,86 @@ class PatientRecord(records.PatientRecord):
 class OrderRecord(records.OrderRecord):
     """Order Record (O)
     """
+    # 9.4.3: Speciment ID
+    sample_id = TextField(default="")
+
+    # 9.4.5: Universal Test ID
+    test = ComponentField(
+        Component.build(
+            NotUsedField(name='_'),
+            TextField("type_of_analysis"),
+            NotUsedField(name='__'),
+            NotUsedField(name='___'),
+        )
+    )
+
+    # 9.4.6: Priority
+    priority = SetField(values=PRIORITY)
+
+    # 9.4.8: CollectionDateTime
+    sampled_at = DateTimeField()
+
+    # 9.4.12: ActionCode
+    action_code = SetField(values=ACTION_CODES)
+
+    # 9.4.14: RelevantClinicalInformation
+    clinical_info = TextField()
+
+    # 9.4.17: OrderingPhysician
+    physician = TextField()
+
+    # 9.4.19: Abnormality flags
+    user_field_1 = ComponentField(
+        Component.build(
+            TextField("name_of_abnormality"),
+            TextField(name='abnormality_flag')
+        )
+    )
+
+    # 9.4.21: Test specific parameters
+    laboratory_field_1 = ComponentField(
+        Component.build(
+            TextField("value"),
+            NotUsedField(name='_')
+        )
+    )
+
+    # 9.4.22: Values from cell counters
+    laboratory_field_2 = ComponentField(
+        Component.build(
+            TextField("wbc_count"),
+            TextField("rbc_concentration"),
+            TextField("hgb_count"),
+            TextField("hct_count"),
+            TextField("mcv_count"),
+            TextField("mch_count"),
+            TextField("mchc_count"),
+            TextField("platelet_count"),
+            TextField("reserved_component_1"),
+            TextField("reserved_component_2"),
+            TextField("reserved_component_3"),
+            TextField("reserved_component_4"),
+            TextField("reserved_component_5"),
+            TextField("neutrophil_count"),
+            TextField("lymphocyte_count"),
+            TextField("monocyte_count"),
+            TextField("Eosinophil_count"),
+            TextField("Basophil_count"),
+            TextField("nrbc_count"),
+            TextField("other_count"),
+            TextField("reserved_component_6"),
+            TextField("reserved_component_7"),
+            TextField("reserved_component_8"),
+            TextField("reserved_component_9"),
+            TextField("reserved_component_10"),
+        )
+    )
+
+    # 9.4.25: Instrument Section ID
+    instrument_section = TextField()
+
+    # 9.4.26: Report Types
+    report_type = SetField(values=REPORT_TYPES)
 
 
 class CommentRecord(records.CommentRecord):
