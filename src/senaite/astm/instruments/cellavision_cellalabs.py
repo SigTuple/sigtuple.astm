@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from senaite.astm import records
-from senaite.astm.fields import ComponentField
+from senaite.astm.fields import ComponentField, RepeatedComponentField
 from senaite.astm.fields import DateTimeField
 from senaite.astm.fields import NotUsedField
 from senaite.astm.fields import SetField
@@ -128,12 +128,13 @@ class OrderRecord(records.OrderRecord):
     sample_id = TextField(default="")
 
     # 9.4.5: Universal Test ID
-    test = ComponentField(
+    test = RepeatedComponentField(
         Component.build(
-            NotUsedField(name='_'),
+            NotUsedField("_"),
             TextField("type_of_analysis"),
-            NotUsedField(name='__'),
-            NotUsedField(name='___'),
+            NotUsedField("__"),
+            NotUsedField("___"),
+            NotUsedField("____"),
         )
     )
 
@@ -161,10 +162,10 @@ class OrderRecord(records.OrderRecord):
     )
 
     # 9.4.21: Test specific parameters
-    laboratory_field_1 = ComponentField(
+    laboratory_field_1 = RepeatedComponentField(
         Component.build(
-            TextField("value"),
-            NotUsedField(name='_')
+            TextField(name="value", default="Empty"),
+            NotUsedField(name='_'),
         )
     )
 
