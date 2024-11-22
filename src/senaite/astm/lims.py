@@ -6,17 +6,16 @@ import requests
 
 from senaite.astm import logger
 
-# SENAITE.JSONAPI route
-API_BASE_URL = "@@API/senaite/v1"
+# SIGTUPLE.JSONAPI route
+API_BASE_URL = "@@API/sigtuple/v1"
 
 
-def post_to_senaite(messages, session, **kwargs):
-    """POST ASTM messages to SENAITE
+def post_to_sigtuple(messages, session, **kwargs):
+    """POST ASTM messages to SIGTUPLE
     """
     attempt = 1
     retries = kwargs.get('retries', 3)
     delay = kwargs.get('delay', 5)
-    consumer = kwargs.get('consumer', 'senaite.lis2a.import')
     success = False
 
     while True:
@@ -24,7 +23,6 @@ def post_to_senaite(messages, session, **kwargs):
         authenticated = session.auth()
         # Build the POST payload
         payload = {
-            'consumer': consumer,
             'messages': messages,
         }
         if authenticated:
@@ -68,7 +66,7 @@ class Session(object):
         return session
 
     def auth(self):
-        logger.info("Starting session with SENAITE ...")
+        logger.info("Starting session with SIGTUPLE ...")
 
         # try to get the version of the remote JSON API
         version = self.get("version")
@@ -88,7 +86,7 @@ class Session(object):
         return True
 
     def post(self, endpoint, payload):
-        """Sends a POST request to SENAITE
+        """Sends a POST request to SIGTUPLE
         """
         url = self.get_url(endpoint)
         try:
