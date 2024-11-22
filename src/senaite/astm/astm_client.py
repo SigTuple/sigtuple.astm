@@ -7,16 +7,18 @@ import json
 import logging
 import os
 import sys
-import time
 from typing import List
 
 from senaite.astm import codec, lims
 from senaite.astm import logger
-from senaite.astm.lims import post_to_senaite
+from senaite.astm.lims import post_to_sigtuple
 from senaite.astm.astm_client_protocol import ASTMClientProtocol
 from senaite.astm.utils import write_message
+from senaite.astm import query_template
 
 LOGFILE = "sigtuple-astm-client.log"
+DELAY = 60
+TEMPLATE: query_template.query_template.QueryTemplate = query_template.cellavision_query_template.CellavisionQueryTemplate()
 
 
 async def consume(queue, callback=None):
@@ -27,24 +29,15 @@ async def consume(queue, callback=None):
         if callable(callback):
             callback(message)
 
-async def send_report_data_to_lis_from_mandara(astm_client: ASTMClientProtocol):
-    logger.info("Before send_report_data_to_lis_from_mandara")
-    await asyncio.sleep(30)  # Wait 240 seconds, then stop
-    logger.info("\n\nSimulate sending approved report data to LIS\n\n")
-    with open("src/senaite/astm/tests/data/cobas_c111.txt", "rb") as file:
-        lines = file.readlines()  # Each line is an element in the list
-        astm_client.send_outbound_message(message_to_LIS=lines)
-    logger.info("after opening")
 
-async def send_query_data_to_lis_from_device(astm_client: ASTMClientProtocol):
-    logger.info("Before send_query_data_to_lis_from_device")
-    await asyncio.sleep(10)  # Wait 30 seconds, then stop
-    logger.info("\n\nSimulate sending query CBC request from device to LIS\n\n")
-    with open("src/senaite/astm/tests/json_data/cellavision_results.json", "r") as file:
-        cellavision_cellalabs_query_json = json.load(file)
-        byte_msgs = codec.iter_encode(cellavision_cellalabs_query_json['data'])
-        astm_client.send_outbound_message(message_to_LIS=byte_msgs)
-    logger.info("after opening")
+async def send_query_to_astm_server(astm_client: ASTMClientProtocol):
+    await asyncio.sleep(DELAY)  
+    logger.debug("\n\n==== Simulate sending query to request CBC data from ASTM Server === \n\n")
+    TEMPLATE.set_query_record(starting_range=["^202402230004^"])
+    query_dict = TEMPLATE.build_query()
+    byte_msgs = codec.iter_encode(records=query_dict)
+    astm_client.send_outbound_message(message_to_LIS=byte_msgs)
+    logger.debug("Query sent succesfully")
  
 
 def main():
@@ -54,7 +47,7 @@ def main():
 
     # Argument groups
     astm_group = parser.add_argument_group('ASTM SERVER')
-    lims_group = parser.add_argument_group('SENAITE LIMS')
+    lims_group = parser.add_argument_group('SIGTUPLE LIMS')
 
     astm_group.add_argument(
         '-l',
@@ -148,14 +141,6 @@ def main():
         # Attach the handler to the logger
         logger.addHandler(handler)
     
-    # # Validate JSON file path
-    # try:
-    #     jsondata = json.load(args.jsonfile[0])
-    #     data = jsondata['data']
-    # except Exception as e:
-    #     logger.error(e)
-    #     return sys.exit(-1)
-    # byte_msgs = codec.iter_encode(data)
 
     # Get the current event loop.
     loop = asyncio.get_event_loop()
@@ -174,23 +159,25 @@ def main():
         logger.error('Output path must be an existing directory')
         return sys.exit(-1)
 
-    # Validate SENAITE URL
+    # Validate SIGTUPLE URL
     url = args.url
     if url:
         session = lims.Session(url)
-        logger.info('Checking connection to SENAITE ...')
+        logger.info('Checking connection to SIGTUPLE ...')
         if not session.auth():
             return sys.exit(-1)
+        
+    def dispatch_astm_message(message):
+        """Dispatch astm message
+        """
+        logger.debug('Dispatching ASTM Message')
+        logger.debug(message)
+
 
     # Create a ASTM message consumer task to be scheduled concurrently.
     queue = asyncio.Queue()
     instances: List[ASTMClientProtocol] = []
     
-    # loop.create_task(consume(queue, callback=dispatch_astm_message))
-    # loop.create_task(send_query_data_to_lis_from_device(instances=instances))
-    # loop.create_task(send_report_data_to_lis_from_mandara(instances=instances))
-
-
     # Create a TCP client coroutine listening on port of the host address.
     # IMPORTANT: We create a new Protocol for every connection!
     client_coro = loop.create_connection(
@@ -201,8 +188,8 @@ def main():
     client = loop.run_until_complete(client_coro)
     logger.info('Starting client on {}'.format(client[1].client))
 
-    # loop.create_task(send_query_data_to_lis_from_device(astm_client=client[1]))
-    loop.create_task(send_report_data_to_lis_from_mandara(astm_client=client[1]))
+    loop.create_task(send_query_to_astm_server(astm_client=client[1]))
+    loop.create_task(consume(queue, callback=dispatch_astm_message))
 
     try:
         loop.run_forever()

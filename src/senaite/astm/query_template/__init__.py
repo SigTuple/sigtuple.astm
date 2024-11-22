@@ -1,0 +1,2 @@
+from senaite.astm.query_template import query_template
+from senaite.astm.query_template import cellavision_query_template
