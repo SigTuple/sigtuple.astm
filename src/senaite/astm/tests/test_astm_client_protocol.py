@@ -148,4 +148,11 @@ class ASTMClientProtocolTest(ASTMTestBase):
 
             idx += 1
 
-        
+        # We expect an ASTM client to send EOT for termination
+        transport.write.assert_called_with(EOT)
+
+        # Check the protocol attribute
+        self.assertEqual(self.protocol.last_sent_outbound_message_idx, -1)
+        self.assertFalse(self.protocol.is_outbound_connection_active)
+        self.assertFalse(self.protocol.is_enq_sent_for_outbound_communication)
+        self.assertEqual(self.protocol.message_to_LIS, [])
